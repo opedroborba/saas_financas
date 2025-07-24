@@ -2,10 +2,7 @@
   "builds": [
     {
       "src": "pubspec.yaml",
-      "use": "@vercel/flutter@0.2.0",
-      "config": {
-        "maxMemory": 4096
-      }
+      "use": "@vercel/flutter@0.2.0"
     }
   ],
   "routes": [
