@@ -1,28 +1,29 @@
-// lib/screens/add_transaction_screen.dart
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:intl/intl.dart';
-import 'package:saas_shinko/models/transacao.dart';
-import 'package:saas_shinko/models/categoria.dart';
+import 'package:saas_shinko/models/conta_a_receber.dart';
+import 'package:saas_shinko/models/categoria.dart'; // Para o dropdown de categorias
 
 final SupabaseClient supabase = Supabase.instance.client;
 
-class AddTransactionScreen extends StatefulWidget {
-  final Transacao? transacao; // Para edição, será não nulo
+class AddEditReceivableScreen extends StatefulWidget {
+  final ContaAReceber? contaAReceber; // Se for para editar, será não nulo
 
-  const AddTransactionScreen({Key? key, this.transacao}) : super(key: key);
+  const AddEditReceivableScreen({Key? key, this.contaAReceber})
+      : super(key: key);
 
   @override
-  State<AddTransactionScreen> createState() => _AddTransactionScreenState();
+  State<AddEditReceivableScreen> createState() =>
+      _AddEditReceivableScreenState();
 }
 
-class _AddTransactionScreenState extends State<AddTransactionScreen> {
+class _AddEditReceivableScreenState extends State<AddEditReceivableScreen> {
   final _formKey = GlobalKey<FormState>();
   final TextEditingController _descricaoController = TextEditingController();
   final TextEditingController _valorController = TextEditingController();
   DateTime? _selectedDate;
   String? _selectedCategory; // ID da categoria
-  String? _selectedType; // 'receita' ou 'despesa'
+  String? _selectedStatus; // 'pendente', 'recebida', 'cancelada'
 
   List<Categoria> _categoriasDisponiveis = [];
   bool _isLoading = false;
@@ -31,17 +32,17 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
   void initState() {
     super.initState();
     _fetchCategories();
-    if (widget.transacao != null) {
+    if (widget.contaAReceber != null) {
       // Modo edição
-      _descricaoController.text = widget.transacao!.descricao;
-      _valorController.text = widget.transacao!.valor.toStringAsFixed(2);
-      _selectedDate = widget.transacao!.data;
-      _selectedCategory = widget.transacao!.categoriaId;
-      _selectedType = widget.transacao!.tipo;
+      _descricaoController.text = widget.contaAReceber!.descricao;
+      _valorController.text = widget.contaAReceber!.valor.toStringAsFixed(2);
+      _selectedDate = widget.contaAReceber!.dataRecebimentoPrevista;
+      _selectedCategory = widget.contaAReceber!.categoriaId;
+      _selectedStatus = widget.contaAReceber!.status;
     } else {
       // Modo adição
       _selectedDate = DateTime.now();
-      _selectedType = 'despesa'; // Valor padrão inicial
+      _selectedStatus = 'pendente'; // Padrão para nova conta
     }
   }
 
@@ -71,15 +72,6 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
       setState(() {
         _categoriasDisponiveis =
             response.map((json) => Categoria.fromJson(json)).toList();
-        // Se estiver editando e a categoria selecionada não estiver na lista (ex: foi excluída)
-        // ou se uma nova transação precisa de uma categoria padrão.
-        if (_selectedCategory == null && _categoriasDisponiveis.isNotEmpty) {
-          _selectedCategory = _categoriasDisponiveis.first.id;
-        } else if (_selectedCategory != null &&
-            !_categoriasDisponiveis.any((cat) => cat.id == _selectedCategory)) {
-          // Se a categoria da transação editada não existe mais, limpa a seleção
-          _selectedCategory = null;
-        }
       });
     } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -129,43 +121,47 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
             double.parse(_valorController.text.replaceAll(',', '.'));
         final String descricao = _descricaoController.text.trim();
 
-        if (widget.transacao == null) {
-          // Adicionar nova transação
-          await supabase.from('transacoes').insert({
+        if (widget.contaAReceber == null) {
+          // Adicionar nova conta
+          await supabase.from('contas_a_receber').insert({
             'user_id': currentUser.id,
             'descricao': descricao,
             'valor': valor,
-            'data': DateFormat('yyyy-MM-dd').format(_selectedDate!),
+            'data_recebimento_prevista':
+                DateFormat('yyyy-MM-dd').format(_selectedDate!),
             'categoria_id': _selectedCategory,
-            'tipo': _selectedType,
+            'status': _selectedStatus,
           });
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Transação adicionada com sucesso!')),
+            const SnackBar(
+                content: Text('Conta a receber adicionada com sucesso!')),
           );
         } else {
-          // Editar transação existente
+          // Editar conta existente
           await supabase
-              .from('transacoes')
+              .from('contas_a_receber')
               .update({
                 'descricao': descricao,
                 'valor': valor,
-                'data': DateFormat('yyyy-MM-dd').format(_selectedDate!),
+                'data_recebimento_prevista':
+                    DateFormat('yyyy-MM-dd').format(_selectedDate!),
                 'categoria_id': _selectedCategory,
-                'tipo': _selectedType,
+                'status': _selectedStatus,
               })
-              .eq('id', widget.transacao!.id)
+              .eq('id', widget.contaAReceber!.id)
               .eq('user_id', currentUser.id);
 
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Transação atualizada com sucesso!')),
+            const SnackBar(
+                content: Text('Conta a receber atualizada com sucesso!')),
           );
         }
         Navigator.of(context).pop(true); // Indica que houve modificação
       } catch (e) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Erro ao salvar transação: $e')),
+          SnackBar(content: Text('Erro ao salvar conta a receber: $e')),
         );
-        print('Erro ao salvar transação: $e');
+        print('Erro ao salvar conta a receber: $e');
       } finally {
         setState(() {
           _isLoading = false;
@@ -178,9 +174,9 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text(widget.transacao == null
-            ? 'Adicionar Transação'
-            : 'Editar Transação'),
+        title: Text(widget.contaAReceber == null
+            ? 'Adicionar Conta a Receber'
+            : 'Editar Conta a Receber'),
       ),
       body: _isLoading
           ? const Center(child: CircularProgressIndicator())
@@ -221,33 +217,11 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
                     ListTile(
                       title: Text(
                         _selectedDate == null
-                            ? 'Selecione a Data'
-                            : 'Data: ${DateFormat('dd/MM/yyyy').format(_selectedDate!)}',
+                            ? 'Selecione a Data Prevista de Recebimento'
+                            : 'Previsão: ${DateFormat('dd/MM/yyyy').format(_selectedDate!)}',
                       ),
                       trailing: const Icon(Icons.calendar_today),
                       onTap: () => _selectDate(context),
-                    ),
-                    const SizedBox(height: 16),
-                    DropdownButtonFormField<String>(
-                      decoration: const InputDecoration(labelText: 'Tipo'),
-                      value: _selectedType,
-                      items: const [
-                        DropdownMenuItem(
-                            value: 'receita', child: Text('Receita')),
-                        DropdownMenuItem(
-                            value: 'despesa', child: Text('Despesa')),
-                      ],
-                      onChanged: (newValue) {
-                        setState(() {
-                          _selectedType = newValue;
-                        });
-                      },
-                      validator: (value) {
-                        if (value == null || value.isEmpty) {
-                          return 'Por favor, selecione um tipo.';
-                        }
-                        return null;
-                      },
                     ),
                     const SizedBox(height: 16),
                     DropdownButtonFormField<String>(
@@ -271,6 +245,30 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
                         return null;
                       },
                     ),
+                    const SizedBox(height: 16),
+                    DropdownButtonFormField<String>(
+                      decoration: const InputDecoration(labelText: 'Status'),
+                      value: _selectedStatus,
+                      items: const [
+                        DropdownMenuItem(
+                            value: 'pendente', child: Text('Pendente')),
+                        DropdownMenuItem(
+                            value: 'recebida', child: Text('Recebida')),
+                        DropdownMenuItem(
+                            value: 'cancelada', child: Text('Cancelada')),
+                      ],
+                      onChanged: (newValue) {
+                        setState(() {
+                          _selectedStatus = newValue;
+                        });
+                      },
+                      validator: (value) {
+                        if (value == null || value.isEmpty) {
+                          return 'Por favor, selecione um status.';
+                        }
+                        return null;
+                      },
+                    ),
                     const SizedBox(height: 32),
                     Center(
                       child: ElevatedButton(
@@ -280,7 +278,7 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
                               horizontal: 40, vertical: 15),
                           textStyle: const TextStyle(fontSize: 18),
                         ),
-                        child: Text(widget.transacao == null
+                        child: Text(widget.contaAReceber == null
                             ? 'Adicionar'
                             : 'Atualizar'),
                       ),
