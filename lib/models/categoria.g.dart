@@ -3,7 +3,8 @@
 part of 'categoria.dart';
 
 // **************************************************************************
-// JsonSerializableGenerator
+// JsonSerializableGenerator - alterando alguma coisa
+
 // **************************************************************************
 
 Categoria _$CategoriaFromJson(Map<String, dynamic> json) => Categoria(
