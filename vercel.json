@@ -1,14 +1,19 @@
 {
+  "version": 2,
   "builds": [
     {
       "src": "pubspec.yaml",
-      "use": "@vercel/flutter@0.2.0"
+      "use": "@vercel/static-build",
+      "config": {
+        "installCommand": "git clone https://github.com/flutter/flutter.git -b stable ${HOME}/flutter_sdk && ${HOME}/flutter_sdk/bin/flutter precache",
+        "buildCommand": "${HOME}/flutter_sdk/bin/flutter build web --release --no-web-resources-cdn"
+      }
     }
   ],
   "routes": [
     {
-      "src": "/.*",
-      "dest": "/index.html"
+      "src": "/(.*)",
+      "dest": "/build/web/$1"
     }
   ]
 }
